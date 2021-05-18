@@ -61,9 +61,9 @@ class HomeViewModel : ViewModel() {
         })
     }
 
-    fun upgradeSlip() {
+    fun upgradeSlip(upgradeWith: String) {
         Log.d(TAG, "UPGRADING SLIP")
-        val apiService = Repo.betPlusAPI.upgradeSlip(BetPlusAPI.SITE_USERNAME, SlipUpgradeRequest("5.01"))
+        val apiService = Repo.betPlusAPI.upgradeSlip(BetPlusAPI.SITE_USERNAME, SlipUpgradeRequest(upgradeWith))
         apiService?.enqueue(object : retrofit2.Callback<SlipResponse?> {
             override fun onResponse(call: Call<SlipResponse?>, response: Response<SlipResponse?>) {
                 if(response.code() == 200)

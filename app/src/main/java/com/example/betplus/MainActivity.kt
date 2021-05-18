@@ -39,7 +39,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.text_auth_username).text?.apply {
             if(this.toString().isEmpty())
             {
-                showToast("Enter a valid email address")
+                Toast.makeText(view.context, "Enter a valid email address", Toast.LENGTH_LONG).show()
             }else{
                 val apiResponse = Repo.betPlusAPI.signIn(AuthRequest(this.toString()))
                 apiResponse?.enqueue(object : retrofit2.Callback<AuthResponse?> {
@@ -49,17 +49,16 @@ class MainActivity : AppCompatActivity() {
                             (response.body() as AuthResponse)?.apply {
                                 BetPlusAPI.SITE_TOKEN = this.token
                                 BetPlusAPI.SITE_USERNAME = this.username
-                                showToast("LoggedIn as ${this.username}")
                                 openDashboard();
                             }
                         }else
                         {
-                            showToast(response.message())
+                            Toast.makeText(view.context, response.message(), Toast.LENGTH_LONG).show()
                         }
                     }
 
                     override fun onFailure(call: Call<AuthResponse?>, t: Throwable) {
-                        showToast("Failed To LogIn")
+                        Toast.makeText(view.context, "Failed to LogIn", Toast.LENGTH_LONG).show()
                     }
 
                 })
@@ -72,7 +71,4 @@ class MainActivity : AppCompatActivity() {
         startActivity(dashboardIntent)
     }
 
-    fun showToast(message:String) {
-        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-    }
 }

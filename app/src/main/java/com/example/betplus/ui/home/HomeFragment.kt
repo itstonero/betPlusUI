@@ -1,11 +1,13 @@
 package com.example.betplus.ui.home
 
+import android.app.AlertDialog
+import android.app.Dialog
+import android.content.DialogInterface
 import android.os.Bundle
-import android.util.Log
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
-import android.widget.ProgressBar
+import android.text.InputType
+import android.view.*
+import android.widget.Button
+import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
@@ -14,6 +16,8 @@ import androidx.lifecycle.ViewModelProvider
 import com.example.betplus.R
 import com.example.betplus.databinding.FragmentHomeBinding
 import com.example.betplus.models.SlipRequest
+import com.example.betplus.services.BetPlusAPI
+
 
 private const val TAG = "HomeFragment"
 
@@ -37,10 +41,12 @@ class HomeFragment : Fragment() {
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
+        Toast.makeText(context, "LoggedIn as ${BetPlusAPI.SITE_USERNAME}", Toast.LENGTH_LONG).show()
+
         binding.textHomeRetries.setOnClickListener { homeViewModel.updateSlip() }
         binding.textHomeRetries.setOnLongClickListener{ homeViewModel.reverseSlip() }
-        binding.textHomeProgress.setOnClickListener { homeViewModel.upgradeSlip() }
-        binding.textHomeProgress.setOnLongClickListener { homeViewModel.createSlip(SlipRequest(5, 5, 2000, 2000, "Begins")) }
+        binding.textHomeProgress.setOnClickListener { upgradeSlip() }
+        binding.textHomeProgress.setOnLongClickListener { createSlip(); true }
         binding.textHomeAdviceAmount.setOnClickListener {
             when(homeViewModel.amountType){
                 0 -> {
@@ -73,9 +79,7 @@ class HomeFragment : Fragment() {
             Toast.makeText(context, it, Toast.LENGTH_LONG).show()
         })
 
-        if(homeViewModel.slip.value == null) {
-            homeViewModel.retrieveSlip()
-        }
+        if(homeViewModel.slip.value == null) homeViewModel.retrieveSlip()
 
         return root
     }
@@ -83,5 +87,73 @@ class HomeFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
+    }
+
+    private fun upgradeSlip(){
+        val builder = AlertDialog.Builder(requireContext())
+        builder.setTitle("Win ODD")
+
+        val input = EditText(requireContext())
+        input.inputType = InputType.TYPE_CLASS_NUMBER
+        builder.setView(input)
+
+        builder.setPositiveButton("Confirm",
+            DialogInterface.OnClickListener { _, _ ->
+                if(input.text.toString().isNotEmpty())
+                    homeViewModel.upgradeSlip(input.text.toString()) }
+        )
+
+        builder.setNegativeButton("Cancel",
+            DialogInterface.OnClickListener { dialog, which -> dialog.cancel() })
+
+        builder.show()
+
+    }
+
+    private fun createSlip(){
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setCancelable(false)
+        dialog.setContentView(LayoutInflater.from(requireContext()).inflate(R.layout.dialog_create_slip, null, false))
+        dialog.findViewById<Button>(R.id.button_confirm_create_slip).setOnClickListener{
+            val trial = dialog.findViewById<TextView>(R.id.text_create_trials).text
+            val amount = dialog.findViewById<TextView>(R.id.text_create_total_amount).text
+            val totalOdd = dialog.findViewById<TextView>(R.id.text_create_total_odds).text
+            val odd = dialog.findViewById<TextView>(R.id.text_create_odd).text
+            trial.let { it ->
+                if(it.isNullOrEmpty()) Toast.makeText(context, "Enter Valid Trials", Toast.LENGTH_LONG).show()
+                else
+                    amount.let { it ->
+                        if(it.isNullOrEmpty()) Toast.makeText(context, "Enter Valid Amount", Toast.LENGTH_LONG).show()
+                        else
+                            totalOdd.let { it->
+                                if(it.isNullOrEmpty()) Toast.makeText(context, "Enter Valid Total Odds", Toast.LENGTH_LONG).show()
+                                else
+                                    amount.let { it->
+                                        if(it.isNullOrEmpty()) Toast.makeText(context, "Enter Valid Total Odds", Toast.LENGTH_LONG).show()
+                                        else {
+                                            homeViewModel.createSlip(
+                                                SlipRequest(
+                                                    trial.toString().toDouble(),
+                                                    odd.toString().toDouble(),
+                                                    totalOdd.toString().toDouble(),
+                                                    amount.toString().toDouble(),
+                                                    "On God"
+                                                )
+                                            )
+                                        }
+                                    }
+                            }
+                    }
+            }
+            dialog.dismiss()
+        }
+        dialog.findViewById<Button>(R.id.button_cancel_create_slip).setOnClickListener{ dialog.dismiss()  }
+        dialog.show()
+
+        dialog.getWindow()?.let {
+            val layoutDimension = WindowManager.LayoutParams()
+            it.setLayout(layoutDimension.width, layoutDimension.height)
+        }
     }
 }
