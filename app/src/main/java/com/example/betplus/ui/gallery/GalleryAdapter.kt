@@ -43,7 +43,7 @@ class GalleryAdapter (val dataSet: List<Fixture>, val selected: GalleryFragment)
         // contents of the view with that element
         viewHolder.teamText.text = "${dataSet[position].home} vs ${dataSet[position].away}"
         viewHolder.tournamentText.text = dataSet[position].suggestion
-        viewHolder.timeText.text = dataSet[position].time
+        viewHolder.timeText.text = "${dataSet[position].tournament} (${dataSet[position].country})"
 
         viewHolder.view.setOnClickListener{ selected.modifyGame(dataSet[position]) }
 

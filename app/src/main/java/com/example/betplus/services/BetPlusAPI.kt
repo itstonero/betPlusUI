@@ -21,7 +21,8 @@ public interface BetPlusAPI {
         @POST("fixtures/{userId}/update")
         fun updateFixtures(@Path("userId") userId:String, @Body fixtures: List<Fixture>) : Call<List<Fixture?>?>?
 
-        @DELETE("fixtures/{userId}/modify")
+        //@DELETE("fixtures/{userId}/modify")
+        @HTTP(method = "DELETE", path = "fixtures/{userId}/modify", hasBody = true)
         fun deleteFixture(@Path("userId") userId:String, @Body fixture:Fixture) : Call<List<Fixture?>?>?
 
         @DELETE("fixtures/{userId}/modify")

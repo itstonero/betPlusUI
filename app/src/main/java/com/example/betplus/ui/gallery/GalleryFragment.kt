@@ -7,16 +7,18 @@ import android.icu.util.Calendar
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
+import android.view.*
+import android.widget.Button
+import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
+import com.example.betplus.R
 import com.example.betplus.databinding.FragmentGalleryBinding
 import com.example.betplus.models.Fixture
+import com.example.betplus.models.SlipRequest
 import java.util.*
 
 
@@ -79,7 +81,9 @@ class GalleryFragment : Fragment() {
 
                     val alarmManager = requireContext().applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
                     val pendingIntent = PendingIntent.getBroadcast(requireContext(), 0, intent, PendingIntent.FLAG_UPDATE_CURRENT)
-                    alarmManager.set(AlarmManager.RTC_WAKEUP, Calendar.getInstance().apply { time = it }.timeInMillis, pendingIntent)
+                    val cal = Calendar.getInstance()
+                    alarmManager.set(AlarmManager.RTC_WAKEUP, cal.apply { time = it }.timeInMillis, pendingIntent)
+                    Toast.makeText(context, "Notification for ${cal.time.hours}:${cal.time.minutes}", Toast.LENGTH_LONG).show()
                 } else
                     Toast.makeText(context, "Only on Android N and Above", Toast.LENGTH_LONG).show()
             }
@@ -87,6 +91,19 @@ class GalleryFragment : Fragment() {
     }
 
     fun modifyGame(fixture: Fixture) {
-        scheduleNotification(fixture)
+        val dialog = Dialog(requireContext())
+        dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
+        dialog.setCancelable(true)
+        dialog.setContentView(LayoutInflater.from(requireContext()).inflate(R.layout.dialog_fixture_options, null, false))
+        dialog.findViewById<Button>(R.id.button_fixture_notify).setOnClickListener{
+            scheduleNotification(fixture)
+            dialog.dismiss()
+        }
+        dialog.findViewById<Button>(R.id.button_fixture_remove).setOnClickListener{
+            galleryViewModel.removeSingleGame(fixture)
+            dialog.dismiss()
+        }
+        dialog.show()
+        dialog.window?.setLayout(600, 400)
     }
 }
