@@ -5,83 +5,108 @@ import android.app.Dialog
 import android.content.DialogInterface
 import android.os.Bundle
 import android.text.InputType
+import android.util.Log
 import android.view.*
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.example.betplus.R
 import com.example.betplus.databinding.FragmentHomeBinding
 import com.example.betplus.models.SlipRequest
+import com.example.betplus.models.SlipResponse
+import com.example.betplus.models.SlipUpgradeRequest
+import com.example.betplus.models.views.DashboardViewModel
 import com.example.betplus.services.BetPlusAPI
+import com.example.betplus.services.Repo
+import retrofit2.Call
+import retrofit2.Response
 
 
 private const val TAG = "HomeFragment"
 
 class HomeFragment : Fragment() {
 
-    private lateinit var homeViewModel: HomeViewModel
+    private val sharedViewModel: DashboardViewModel by activityViewModels()
+
     private var _binding: FragmentHomeBinding? = null
 
-    // This property is only valid between onCreateView and
-    // onDestroyView.
     private val binding get() = _binding!!
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        homeViewModel =
-            ViewModelProvider(this).get(HomeViewModel::class.java)
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
 
         _binding = FragmentHomeBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
-        Toast.makeText(context, "LoggedIn as ${BetPlusAPI.SITE_USERNAME}", Toast.LENGTH_LONG).show()
-
-        binding.textHomeRetries.setOnClickListener { homeViewModel.updateSlip() }
-        binding.textHomeRetries.setOnLongClickListener{ homeViewModel.reverseSlip() }
+        binding.textHomeRetries.setOnClickListener { updateSlip() }
+        binding.textHomeRetries.setOnLongClickListener{ reverseSlip() }
         binding.textHomeProgress.setOnClickListener { upgradeSlip() }
-        binding.textHomeProgress.setOnLongClickListener { createSlip(); true }
-        binding.textHomeAdviceAmount.setOnClickListener {
-            when(homeViewModel.amountType){
-                0 -> {
-                    homeViewModel.amountType = 1
-                    binding.textHomeAdviceAmount.text = "NGN ${homeViewModel.slip.value?.balanceAmount}"
-                    binding.textHomeAmountType.text = "BALANCE AMOUNT"
-                }
-                1 -> {
-                    homeViewModel.amountType = 2
-                    binding.textHomeAdviceAmount.text = "NGN ${homeViewModel.slip.value?.bonusAmount}"
-                    binding.textHomeAmountType.text = "BONUS AMOUNT"
-                }
-                else ->{
-                    homeViewModel.amountType = 0
-                    binding.textHomeAdviceAmount.text = "NGN ${homeViewModel.slip.value?.adviceAmount}"
-                    binding.textHomeAmountType.text = "ADVICE AMOUNT"
+        binding.textHomeProgress.setOnLongClickListener { createSlip() }
+        binding.textHomeAdviceAmount.setOnClickListener { loadAmount()}
+
+        sharedViewModel.slipInfo.observe(viewLifecycleOwner, Observer { loadParameters() })
+
+        if(sharedViewModel.slipInfo.value == null) initializeSlip()
+
+        return root
+    }
+
+    private fun initializeSlip() {
+        Log.i(TAG, "Initializing Slip")
+        val apiService = Repo.betPlusAPI.retrieveSlip(BetPlusAPI.SITE_USERNAME)
+        apiService?.enqueue(object : retrofit2.Callback<SlipResponse?> {
+            override fun onResponse(call: Call<SlipResponse?>, response: Response<SlipResponse?>) {
+                if(response.code() == 200)
+                {
+                    (response.body() as SlipResponse)?.apply {
+                        sharedViewModel.updateSlipInfo(this)
+                        Toast.makeText(context, "Loaded Slip Successfully", Toast.LENGTH_LONG).show()
+                    }
+                }else
+                {
+                    Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
                 }
             }
-        }
 
-        homeViewModel.slip.observe(viewLifecycleOwner, Observer {
-            binding.textHomeAdviceAmount.text = "NGN ${it.adviceAmount}"
-            binding.textHomeAmountType.text = "Advice Amount"
+            override fun onFailure(call: Call<SlipResponse?>, t: Throwable) {
+                Toast.makeText(context, "Failed To Load Slip", Toast.LENGTH_LONG).show()
+            }
+        })
+    }
+
+    private fun loadParameters() {
+        sharedViewModel.slipInfo.value?.let {
             binding.textHomeProgress.text = "${it.progress} / ${it.progressLimit}"
             binding.textHomeRetries.text = "${it.retries} / ${it.retriesLimit}"
             binding.progressLoadingSlips.visibility = View.INVISIBLE
-        })
+        }
+        loadAmount()
+    }
 
-        homeViewModel.errorMessage.observe(viewLifecycleOwner, Observer{
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-        })
-
-        if(homeViewModel.slip.value == null) homeViewModel.retrieveSlip()
-
-        return root
+    private fun loadAmount() {
+        sharedViewModel.slipInfo.value?.let {
+            when(sharedViewModel.amountType){
+                0 -> {
+                    sharedViewModel.amountType = 1
+                    binding.textHomeAdviceAmount.text = "NGN ${it.balanceAmount}"
+                    binding.textHomeAmountType.text = "BALANCE AMOUNT"
+                }
+                1 -> {
+                    sharedViewModel.amountType = 2
+                    binding.textHomeAdviceAmount.text = "NGN ${it.bonusAmount}"
+                    binding.textHomeAmountType.text = "BONUS AMOUNT"
+                }
+                else ->{
+                    sharedViewModel.amountType = 0
+                    binding.textHomeAdviceAmount.text = "NGN ${it.adviceAmount}"
+                    binding.textHomeAmountType.text = "ADVICE AMOUNT (${it.adviceOdd})"
+                }
+            }
+        }
     }
 
     override fun onDestroyView() {
@@ -94,23 +119,41 @@ class HomeFragment : Fragment() {
         builder.setTitle("Win ODD")
 
         val input = EditText(requireContext())
-        input.inputType = InputType.TYPE_CLASS_NUMBER
+        input.inputType = InputType.TYPE_CLASS_TEXT
         builder.setView(input)
 
         builder.setPositiveButton("Confirm",
             DialogInterface.OnClickListener { _, _ ->
-                if(input.text.toString().isNotEmpty())
-                    homeViewModel.upgradeSlip(input.text.toString()) }
+                if(input.text.toString().isNotEmpty()) {
+                    val apiService = Repo.betPlusAPI.upgradeSlip(BetPlusAPI.SITE_USERNAME, SlipUpgradeRequest(input.text.toString()))
+                    apiService?.enqueue(object : retrofit2.Callback<SlipResponse?> {
+                        override fun onResponse(call: Call<SlipResponse?>, response: Response<SlipResponse?>) {
+                            if(response.code() == 200)
+                            {
+                                (response.body() as SlipResponse)?.apply { sharedViewModel.updateSlipInfo(this) }
+                            }else
+                            {
+                                Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
+                            }
+                        }
+
+                        override fun onFailure(call: Call<SlipResponse?>, t: Throwable) {
+                            Toast.makeText(context, "Failed to Upgrade Slip", Toast.LENGTH_LONG).show()
+                        }
+                    })
+                }
+
+            }
         )
 
         builder.setNegativeButton("Cancel",
-            DialogInterface.OnClickListener { dialog, which -> dialog.cancel() })
+            DialogInterface.OnClickListener { dialog, _ -> dialog.cancel() })
 
         builder.show()
 
     }
 
-    private fun createSlip(){
+    private fun createSlip():Boolean{
         val dialog = Dialog(requireContext())
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
         dialog.setCancelable(false)
@@ -132,15 +175,25 @@ class HomeFragment : Fragment() {
                                     amount.let { it->
                                         if(it.isNullOrEmpty()) Toast.makeText(context, "Enter Valid Total Odds", Toast.LENGTH_LONG).show()
                                         else {
-                                            homeViewModel.createSlip(
-                                                SlipRequest(
-                                                    trial.toString().toDouble(),
-                                                    odd.toString().toDouble(),
-                                                    totalOdd.toString().toDouble(),
-                                                    amount.toString().toDouble(),
-                                                    "On God"
-                                                )
-                                            )
+                                            val newSlip = SlipRequest(trial.toString().toDouble(), odd.toString().toDouble(), totalOdd.toString().toDouble(), amount.toString().toDouble(), "On God")
+                                            val apiCreate = Repo.betPlusAPI.createSlip(BetPlusAPI.SITE_USERNAME, newSlip)
+                                            apiCreate?.enqueue(object : retrofit2.Callback<SlipResponse?> {
+                                                override fun onResponse(call: Call<SlipResponse?>, response: Response<SlipResponse?>) {
+                                                    if(response.code() == 200)
+                                                    {
+                                                        (response.body() as SlipResponse)?.apply {
+                                                            sharedViewModel.updateSlipInfo(this)
+                                                        }
+                                                    }else
+                                                    {
+                                                        Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
+                                                    }
+                                                }
+
+                                                override fun onFailure(call: Call<SlipResponse?>, t: Throwable) {
+                                                    Toast.makeText(context, "Failed To Create Slip", Toast.LENGTH_LONG).show()
+                                                }
+                                            })
                                         }
                                     }
                             }
@@ -155,5 +208,47 @@ class HomeFragment : Fragment() {
             val layoutDimension = WindowManager.LayoutParams()
             it.setLayout(layoutDimension.width, layoutDimension.height)
         }
+        return true
+    }
+
+    private fun updateSlip(){
+        Log.d(TAG, "UPDATING SLIP")
+        val apiService = Repo.betPlusAPI.updateSlip(BetPlusAPI.SITE_USERNAME)
+        apiService?.enqueue(object : retrofit2.Callback<SlipResponse?> {
+            override fun onResponse(call: Call<SlipResponse?>, response: Response<SlipResponse?>) {
+                if(response.code() == 200)
+                {
+                    (response.body() as SlipResponse)?.apply { sharedViewModel.updateSlipInfo(this) }
+                }else
+                {
+                    Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
+                }
+            }
+
+            override fun onFailure(call: Call<SlipResponse?>, t: Throwable) {
+                Toast.makeText(context, "Failed To Update Slip", Toast.LENGTH_LONG).show()
+            }
+        })
+    }
+
+    private fun reverseSlip(): Boolean {
+        Log.d(TAG, "REVERSING SLIP")
+        val apiService = Repo.betPlusAPI.reverseSlip(BetPlusAPI.SITE_USERNAME)
+        apiService?.enqueue(object : retrofit2.Callback<SlipResponse?> {
+            override fun onResponse(call: Call<SlipResponse?>, response: Response<SlipResponse?>) {
+                if(response.code() == 200)
+                {
+                    (response.body() as SlipResponse)?.apply { sharedViewModel.updateSlipInfo(this) }
+                }else
+                {
+                    Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
+                }
+            }
+
+            override fun onFailure(call: Call<SlipResponse?>, t: Throwable) {
+                Toast.makeText(context, "Failed To Reverse Slip", Toast.LENGTH_LONG).show()
+            }
+        })
+        return true
     }
 }

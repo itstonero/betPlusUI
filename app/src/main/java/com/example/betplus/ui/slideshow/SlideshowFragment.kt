@@ -1,8 +1,8 @@
 package com.example.betplus.ui.slideshow
 
-import android.R
 import android.app.AlertDialog
 import android.content.DialogInterface
+import android.opengl.Visibility
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -22,49 +22,43 @@ class SlideshowFragment : Fragment() {
 
     private lateinit var slideshowViewModel: SlideshowViewModel
     private var _binding: FragmentSlideshowBinding? = null
-    private lateinit var recycler_adapter: SlideShowAdapter
+    private lateinit var recyclerAdapter: SlideShowAdapter
     // This property is only valid between onCreateView and
     // onDestroyView.
     private val binding get() = _binding!!
 
-    override fun onCreateView(
-        inflater: LayoutInflater,
-        container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View? {
-        slideshowViewModel =
-            ViewModelProvider(this).get(SlideshowViewModel::class.java)
-
+    override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        slideshowViewModel = ViewModelProvider(this).get(SlideshowViewModel::class.java)
         _binding = FragmentSlideshowBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
-
-        slideshowViewModel.text.observe(viewLifecycleOwner, Observer {
-            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-        })
-
+        slideshowViewModel.text.observe(viewLifecycleOwner, Observer { Toast.makeText(context, it, Toast.LENGTH_LONG).show() })
         binding.textSlideshowSearch.doOnTextChanged{ text, _, _, _ ->   slideshowViewModel.findMatches(text.toString())}
         binding.buttonRegisterGame.setOnClickListener { loadUp() }
-
-        slideshowViewModel.matchingFixtures.observe(viewLifecycleOwner, Observer {
-            binding.recyclerSlideshow.layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL ,false)
-            recycler_adapter = SlideShowAdapter(it, this)
-            binding.recyclerSlideshow.adapter = recycler_adapter
-        })
-
-        if(slideshowViewModel.allFixtures.value.isNullOrEmpty()){
-            slideshowViewModel.getAllMatches()
-        }
+        binding.textSlideshowSearch.visibility = View.INVISIBLE
+        slideshowViewModel.matchingFixtures.observe(viewLifecycleOwner, Observer { loadRecyclerView(it) })
+        slideshowViewModel.getAllMatches()
 
         return root
     }
 
     public fun toggleFixture(fixture: Fixture){
         slideshowViewModel.toggleFixture(fixture)
-        recycler_adapter.notifyDataSetChanged()
+        recyclerAdapter.notifyDataSetChanged()
         if(isSelected(fixture))  makeSuggestion(fixture)
     }
 
+    private fun loadRecyclerView(allFixtures: List<Fixture>){
+        if(binding.recyclerSlideshow.adapter == null){
+            binding.recyclerSlideshow.layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL ,false)
+            recyclerAdapter = SlideShowAdapter(allFixtures, this)
+            binding.recyclerSlideshow.adapter = recyclerAdapter
+        }else{
+            recyclerAdapter.notifyDataSetChanged()
+        }
+
+        binding.textSlideshowSearch.visibility = View.VISIBLE
+    }
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
@@ -74,21 +68,21 @@ class SlideshowFragment : Fragment() {
         return slideshowViewModel.selectedFixture.value?.contains(fixture) !!
     }
 
-    fun loadUp(){
+    private fun loadUp(){
         val builder = AlertDialog.Builder(context)
         builder.setTitle("Register Matches")
         builder.setMessage("Clear Previous Matches")
         builder.setPositiveButton(
             "Clear"
-        ) { dialog, which -> slideshowViewModel.registerGames(true)}
+        ) { _, _ -> slideshowViewModel.registerGames(true, requireContext());}
         builder.setNegativeButton(
             "Retain"
-        ) { dialog, which -> slideshowViewModel.registerGames(false)}
+        ) { _, _ -> slideshowViewModel.registerGames(false, requireContext());}
 
         builder.create().show()
     }
 
-    fun makeSuggestion(fixture: Fixture){
+    private fun makeSuggestion(fixture: Fixture){
         val options = arrayOf("Home Wins", "Away Wins", "Home Win (-1.5AH)", "Away Win (-1.5AH)", "Home Win (-2.5AH)", "Away Win (-2.5AH)")
 
         val builder  = AlertDialog.Builder(context)

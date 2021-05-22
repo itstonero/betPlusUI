@@ -25,7 +25,7 @@ public interface BetPlusAPI {
         @HTTP(method = "DELETE", path = "fixtures/{userId}/modify", hasBody = true)
         fun deleteFixture(@Path("userId") userId:String, @Body fixture:Fixture) : Call<List<Fixture?>?>?
 
-        @DELETE("fixtures/{userId}/modify")
+        @PUT("fixtures/{userId}/modify")
         fun updateFixture(@Path("userId") userId:String, @Body fixture:Fixture) : Call<List<Fixture?>?>?
 
         @POST("slips/{userId}/create")
