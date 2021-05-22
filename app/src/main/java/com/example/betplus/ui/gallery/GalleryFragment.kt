@@ -1,61 +1,63 @@
 package com.example.betplus.ui.gallery
 
-import android.app.*
+import android.app.AlarmManager
+import android.app.Dialog
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.icu.util.Calendar
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
-import android.view.*
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.view.Window
 import android.widget.Button
 import android.widget.Toast
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.Observer
-import androidx.lifecycle.ViewModelProvider
+import androidx.fragment.app.activityViewModels
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.betplus.R
 import com.example.betplus.databinding.FragmentGalleryBinding
 import com.example.betplus.models.Fixture
+import com.example.betplus.models.views.DashboardViewModel
+import com.example.betplus.services.BetPlusAPI
+import com.example.betplus.services.Repo
+import retrofit2.Call
+import retrofit2.Response
 import java.util.*
 
 
 private const val TAG = "GalleryFragment"
 class GalleryFragment : Fragment() {
 
-    private lateinit var galleryViewModel: GalleryViewModel
+    private val sharedViewModel:DashboardViewModel by activityViewModels()
     private var _binding: FragmentGalleryBinding? = null
     private lateinit var recyclerAdapter: GalleryAdapter
-
-    // This property is only valid between onCreateView and
-    // onDestroyView.
     private val binding get() = _binding!!
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        galleryViewModel = ViewModelProvider(this).get(GalleryViewModel::class.java)
         _binding = FragmentGalleryBinding.inflate(inflater, container, false)
         val root: View = binding.root
 
-        galleryViewModel.errorMessage.observe(viewLifecycleOwner, Observer { Toast.makeText(context, it, Toast.LENGTH_LONG).show() })
-        galleryViewModel.allFixtures.observe(viewLifecycleOwner, Observer {
+        sharedViewModel.selectedMatches.observe(viewLifecycleOwner, { fixtures ->
             binding.recyclerGames.layoutManager = LinearLayoutManager(context, LinearLayoutManager.VERTICAL ,false)
-            it.forEach{ fixture ->  alarmSetStatus(fixture) }
-            recyclerAdapter = GalleryAdapter(it.sortedBy { fixture -> fixture.time.split(":").let{  (it[0].toInt()* 60 + it[1].toInt()) } }, this)
+            fixtures.forEach{ fixture ->  alarmSetStatus(fixture) }
+            recyclerAdapter = GalleryAdapter(fixtures.sortedBy { fixture -> fixture.time.split(":").let{  (it[0].toInt()* 60 + it[1].toInt()) } }, this)
             binding.recyclerGames.adapter = recyclerAdapter
         })
-        galleryViewModel.getRegisteredMatches()
+
+        if(sharedViewModel.selectedMatches.value == null) getRegisteredMatches()
 
         return root
     }
 
 
-    private fun alarmSetStatus(fixture: Fixture) {
-        fixture.suggestion.replace("**", "")
-
+    fun alarmSetStatus(fixture: Fixture):Boolean {
         val alarmIsUp = PendingIntent.getBroadcast(
             context, fixture.fixtureId.toInt(), Intent(requireContext(), AlarmReceiver::class.java), PendingIntent.FLAG_NO_CREATE)
-
-        if(alarmIsUp != null) fixture.suggestion = "** ${fixture.suggestion} **"
+        return (alarmIsUp != null)
     }
 
     override fun onDestroyView() {
@@ -77,6 +79,7 @@ class GalleryFragment : Fragment() {
                     val alarmManager = requireContext().applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
                     val pendingIntent = PendingIntent.getBroadcast(requireContext(), fixture.fixtureId.toInt(), intent, PendingIntent.FLAG_UPDATE_CURRENT)
                     alarmManager.set(AlarmManager.RTC_WAKEUP, cal.apply { time = it }.timeInMillis, pendingIntent)
+                    sharedViewModel.updateSelectedMatches(sharedViewModel.selectedMatches.value?.map { it -> it } ?: listOf())
                     Toast.makeText(context, "Notification for ${cal.time.hours}:${cal.time.minutes}", Toast.LENGTH_LONG).show()
                 } else
                     Toast.makeText(context, "Only on Android N and Above", Toast.LENGTH_LONG).show()
@@ -85,11 +88,14 @@ class GalleryFragment : Fragment() {
     }
 
     private fun cancelNotification(fixture: Fixture){
+        val intent = Intent(requireContext().applicationContext, AlarmReceiver::class.java)
+        intent.putExtra(AlarmReceiver.NF_TEAMS, "${fixture.home} Vs. ${fixture.away}")
+        intent.putExtra(AlarmReceiver.NF_SCHEDULE, "${fixture.suggestion} - ${fixture.country} - ${fixture.tournament}")
+        intent.putExtra(AlarmReceiver.NF_ID, fixture.fixtureId)
+
         val alarmManager = requireContext().applicationContext.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        PendingIntent.getBroadcast(requireContext(),
-            fixture.fixtureId.toInt(),
-            Intent(requireContext().applicationContext, AlarmReceiver::class.java), PendingIntent.FLAG_UPDATE_CURRENT)
-            ?.apply { alarmManager.cancel(this) }
+        val pendingIntent = PendingIntent.getBroadcast(context, fixture.fixtureId.toInt(), intent, PendingIntent.FLAG_UPDATE_CURRENT)
+        alarmManager.cancel(pendingIntent)
     }
 
     fun modifyGame(fixture: Fixture) {
@@ -102,7 +108,7 @@ class GalleryFragment : Fragment() {
             dialog.dismiss()
         }
         dialog.findViewById<Button>(R.id.button_fixture_remove).setOnClickListener{
-            galleryViewModel.removeSingleGame(fixture)
+            removeSingleGame(fixture)
             dialog.dismiss()
         }
         dialog.findViewById<Button>(R.id.button_fixture_un_notify).setOnClickListener{
@@ -111,5 +117,68 @@ class GalleryFragment : Fragment() {
         }
         dialog.show()
         dialog.window?.setLayout(600, 400)
+    }
+
+    private fun getRegisteredMatches() {
+        Log.d(TAG, "Retrieving Registered Matches")
+        val apiResponse = Repo.betPlusAPI.getRegisteredFixtures(BetPlusAPI.SITE_USERNAME)
+        apiResponse?.enqueue(object : retrofit2.Callback<List<Fixture?>?> {
+            override fun onResponse(call: Call<List<Fixture?>?>, response: Response<List<Fixture?>?>) {
+                if(response.code() == 200)
+                {
+                    (response.body() as List<Fixture>?)?.apply {
+                        sharedViewModel.updateSelectedMatches(this)
+                    }
+                }else
+                    Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
+            }
+
+            override fun onFailure(call: Call<List<Fixture?>?>, t: Throwable) {
+                Toast.makeText(context, "Failed To Retrieve Fixtures", Toast.LENGTH_LONG).show()
+            }
+
+        })
+    }
+
+    private fun removeSingleGame(fixture:Fixture) {
+        Log.d(TAG, "Removing Single Game")
+        val apiResponse = Repo.betPlusAPI.deleteFixture(BetPlusAPI.SITE_USERNAME, fixture)
+        apiResponse?.enqueue(object : retrofit2.Callback<List<Fixture?>?> {
+            override fun onResponse(call: Call<List<Fixture?>?>, response: Response<List<Fixture?>?>) {
+                if(response.code() == 200)
+                {
+                    (response.body() as List<Fixture>)?.apply {
+                        sharedViewModel.updateSelectedMatches(this)
+                    }
+                }else
+                    Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
+            }
+
+            override fun onFailure(call: Call<List<Fixture?>?>, t: Throwable) {
+                Toast.makeText(context, "Failed To Remove Fixture", Toast.LENGTH_LONG).show()
+            }
+
+        })
+    }
+
+    private fun updateSingleGame(fixture:Fixture) {
+        Log.d(TAG, "Updating Single Game")
+        val apiResponse = Repo.betPlusAPI.updateFixture(BetPlusAPI.SITE_USERNAME, fixture)
+        apiResponse?.enqueue(object : retrofit2.Callback<List<Fixture?>?> {
+            override fun onResponse(call: Call<List<Fixture?>?>, response: Response<List<Fixture?>?>) {
+                if(response.code() == 200)
+                {
+                    (response.body() as List<Fixture>)?.apply {
+                       sharedViewModel.updateSelectedMatches(this)
+                    }
+                }else
+                    Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
+            }
+
+            override fun onFailure(call: Call<List<Fixture?>?>, t: Throwable) {
+                Toast.makeText(context, "Failed To Update Fixture", Toast.LENGTH_LONG).show()
+            }
+
+        })
     }
 }

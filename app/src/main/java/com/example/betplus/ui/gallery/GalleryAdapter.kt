@@ -8,14 +8,13 @@ import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.example.betplus.R
 import com.example.betplus.models.Fixture
-import com.example.betplus.ui.slideshow.SlideshowFragment
 
 class GalleryAdapter (private val dataSet: List<Fixture>, private val selected: GalleryFragment) : RecyclerView.Adapter<GalleryAdapter.ViewHolder>() {
 
     class ViewHolder(val view: View) : RecyclerView.ViewHolder(view) {
-        val teamText: TextView = view.findViewById<TextView>(R.id.text_slide_adapter_team)
-        val tournamentText: TextView = view.findViewById<TextView>(R.id.text_slide_adapter_tournament)
-        val timeText: TextView = view.findViewById<TextView>(R.id.text_slide_adapter_time)
+        val teamText: TextView = view.findViewById(R.id.text_slide_adapter_team)
+        val tournamentText: TextView = view.findViewById(R.id.text_slide_adapter_tournament)
+        val timeText: TextView = view.findViewById(R.id.text_slide_adapter_time)
     }
 
     override fun onCreateViewHolder(viewGroup: ViewGroup, viewType: Int): ViewHolder {
@@ -28,7 +27,7 @@ class GalleryAdapter (private val dataSet: List<Fixture>, private val selected: 
         viewHolder.teamText.text = "${dataSet[position].home} vs ${dataSet[position].away}"
         viewHolder.tournamentText.text = dataSet[position].suggestion
         viewHolder.timeText.text = "${dataSet[position].tournament} (${dataSet[position].country})"
-        if(!dataSet[position].suggestion.contains("**"))
+        if(!selected.alarmSetStatus(dataSet[position]))
             viewHolder.view.setBackgroundColor(Color.LTGRAY)
         viewHolder.view.setOnClickListener{ selected.modifyGame(dataSet[position]) }
     }

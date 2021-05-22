@@ -122,32 +122,36 @@ class HomeFragment : Fragment() {
         input.inputType = InputType.TYPE_CLASS_TEXT
         builder.setView(input)
 
-        builder.setPositiveButton("Confirm",
-            DialogInterface.OnClickListener { _, _ ->
-                if(input.text.toString().isNotEmpty()) {
-                    val apiService = Repo.betPlusAPI.upgradeSlip(BetPlusAPI.SITE_USERNAME, SlipUpgradeRequest(input.text.toString()))
-                    apiService?.enqueue(object : retrofit2.Callback<SlipResponse?> {
-                        override fun onResponse(call: Call<SlipResponse?>, response: Response<SlipResponse?>) {
-                            if(response.code() == 200)
-                            {
-                                (response.body() as SlipResponse)?.apply { sharedViewModel.updateSlipInfo(this) }
-                            }else
-                            {
-                                Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
+        builder.setPositiveButton("Confirm") { _, _ ->
+            if (input.text.toString().isNotEmpty()) {
+                val apiService = Repo.betPlusAPI.upgradeSlip(
+                    BetPlusAPI.SITE_USERNAME,
+                    SlipUpgradeRequest(input.text.toString())
+                )
+                apiService?.enqueue(object : retrofit2.Callback<SlipResponse?> {
+                    override fun onResponse(
+                        call: Call<SlipResponse?>,
+                        response: Response<SlipResponse?>
+                    ) {
+                        if (response.code() == 200) {
+                            (response.body() as SlipResponse)?.apply {
+                                sharedViewModel.updateSlipInfo(
+                                    this
+                                )
                             }
+                        } else {
+                            Toast.makeText(context, response.message(), Toast.LENGTH_LONG).show()
                         }
+                    }
 
-                        override fun onFailure(call: Call<SlipResponse?>, t: Throwable) {
-                            Toast.makeText(context, "Failed to Upgrade Slip", Toast.LENGTH_LONG).show()
-                        }
-                    })
-                }
-
+                    override fun onFailure(call: Call<SlipResponse?>, t: Throwable) {
+                        Toast.makeText(context, "Failed to Upgrade Slip", Toast.LENGTH_LONG).show()
+                    }
+                })
             }
-        )
+        }
 
-        builder.setNegativeButton("Cancel",
-            DialogInterface.OnClickListener { dialog, _ -> dialog.cancel() })
+        builder.setNegativeButton("Cancel") { dialog, _ -> dialog.cancel() }
 
         builder.show()
 
@@ -204,7 +208,7 @@ class HomeFragment : Fragment() {
         dialog.findViewById<Button>(R.id.button_cancel_create_slip).setOnClickListener{ dialog.dismiss()  }
         dialog.show()
 
-        dialog.getWindow()?.let {
+        dialog.window?.let {
             val layoutDimension = WindowManager.LayoutParams()
             it.setLayout(layoutDimension.width, layoutDimension.height)
         }

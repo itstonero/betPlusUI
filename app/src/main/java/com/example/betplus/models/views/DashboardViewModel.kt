@@ -9,12 +9,16 @@ import com.example.betplus.models.SlipResponse
 class DashboardViewModel : ViewModel() {
 
     var amountType = 0
+    val chosenGames = ArrayList<Fixture>()
 
-    private var _allMatches = MutableLiveData<List<Fixture>>().apply { value = listOf() }
+    private var _allMatches = MutableLiveData<List<Fixture>>()
     val allMatches: LiveData<List<Fixture>> = _allMatches;
 
-    private var _selectedMatches = MutableLiveData<List<Fixture>>().apply { value = listOf() }
+    private var _selectedMatches = MutableLiveData<List<Fixture>>()
     val selectedMatches: LiveData<List<Fixture>> = _selectedMatches;
+
+    private var _searchResult = MutableLiveData<List<Fixture>>()
+    val searchResult: LiveData<List<Fixture>> = _searchResult;
 
     private var _slipInfo = MutableLiveData<SlipResponse>();
     val slipInfo: LiveData<SlipResponse> = _slipInfo;
@@ -29,5 +33,9 @@ class DashboardViewModel : ViewModel() {
 
     fun updateSlipInfo(slipResponse: SlipResponse){
         _slipInfo.value = slipResponse
+    }
+
+    fun updateSearchResult(fixtures: List<Fixture>){
+        _searchResult.value = fixtures
     }
 }
