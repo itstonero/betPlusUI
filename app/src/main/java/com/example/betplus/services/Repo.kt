@@ -19,7 +19,7 @@ public class Repo {
         val retrofit: Retrofit = Retrofit.Builder().client(client).baseUrl(BetPlusAPI.BASE_URL)
             .addConverterFactory(GsonConverterFactory.create()).build();
         val betPlusAPI:BetPlusAPI =  retrofit.create(BetPlusAPI::class.java)
-
-        val NOTIFICATION_ID = "NOTIFICATION_ID"
+        var LAST_ADVICE_AMOUNT = ""
+        var LAST_ADVICE_ODD = ""
     }
 }
