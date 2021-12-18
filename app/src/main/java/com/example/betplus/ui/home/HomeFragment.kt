@@ -47,6 +47,7 @@ class HomeFragment : Fragment() {
         binding.textHomeProgress.setOnClickListener { upgradeSlip() }
         binding.textHomeProgress.setOnLongClickListener { createSlip() }
         binding.textHomeAdviceAmount.setOnClickListener { loadAmount()}
+        binding.textHomeAdviceAmount.setOnLongClickListener { createSlip() }
 
         sharedViewModel.slipInfo.observe(viewLifecycleOwner, Observer { loadParameters() })
 
@@ -78,12 +79,13 @@ class HomeFragment : Fragment() {
         })
     }
 
-    private fun loadParameters() {
+    private fun loadParameters(){
         sharedViewModel.slipInfo.value?.let {
             binding.textHomeProgress.text = "${it.progress} / ${it.progressLimit}"
             binding.textHomeRetries.text = "${it.retries} / ${it.retriesLimit}"
             binding.progressLoadingSlips.visibility = View.INVISIBLE
         }
+        sharedViewModel.amountType = 2;
         loadAmount()
     }
 
