@@ -88,7 +88,7 @@ class SlideshowFragment : Fragment() {
     }
 
     private fun makeSuggestion(fixture: Fixture){
-        val options = arrayOf("Home Wins", "Away Wins", "Home Win (-1.5AH)", "Away Win (-1.5AH)", "Home Win (-2.5AH)", "Away Win (-2.5AH)")
+        val options = arrayOf("Home Wins", "Home Win (-1.5AH)", "Away Wins", "Away Win (-1.5AH)", "Over 2.5", "Over 3.5")
 
         val builder  = AlertDialog.Builder(context)
         builder.setTitle("Make Suggestion")
